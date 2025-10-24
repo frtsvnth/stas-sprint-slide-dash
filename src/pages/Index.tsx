@@ -10,20 +10,16 @@ interface GameElementData {
   type: "header" | "list" | "image" | "chart" | "plans" | "useless";
   content: string | string[];
   isRequired: boolean;
+}
+
+interface SlideElement extends GameElementData {
   position: { x: number; y: number };
 }
 
 const Index = () => {
   const [screen, setScreen] = useState<GameScreen>("start");
   const [timeLeft, setTimeLeft] = useState(10);
-  const [elements, setElements] = useState<GameElementData[]>([]);
-  const [elementsOnSlide, setElementsOnSlide] = useState<Set<string>>(new Set());
-  const [draggedElement, setDraggedElement] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [finalTime, setFinalTime] = useState(0);
-  const slideRef = useRef<HTMLDivElement>(null);
-
-  const initialElements: Omit<GameElementData, "position">[] = [
+  const [elements] = useState<GameElementData[]>([
     { id: "header", type: "header", content: "Спринт 24 • Итоги", isRequired: true },
     { id: "list", type: "list", content: ["Пофиксили баг с авторизацией", "Доделали фичу экспорта данных", "Начали работу над новым дашбордом"], isRequired: true },
     { id: "image", type: "image", content: "", isRequired: true },
@@ -31,28 +27,31 @@ const Index = () => {
     { id: "plans", type: "plans", content: "Закончить дашборд и начать тестирование новой версии API", isRequired: true },
     { id: "useless1", type: "useless", content: "Здесь должен быть текст", isRequired: false },
     { id: "useless2", type: "useless", content: "😺", isRequired: false },
-  ];
+  ]);
+  const [slideElements, setSlideElements] = useState<SlideElement[]>([]);
+  const [draggedElement, setDraggedElement] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [finalTime, setFinalTime] = useState(0);
+  const slideRef = useRef<HTMLDivElement>(null);
 
   const startGame = () => {
-    const positioned = initialElements.map((el) => ({
-      ...el,
-      position: {
-        x: Math.random() * 60 + 5,
-        y: Math.random() * 60 + 5,
-      },
-    }));
-    setElements(positioned);
-    setElementsOnSlide(new Set());
+    setSlideElements([]);
     setTimeLeft(10);
     setScreen("playing");
     setIsSuccess(false);
     setFinalTime(0);
   };
 
+  // Таймер с автоматическим завершением
   useEffect(() => {
-    if (screen === "playing" && timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer);
+    if (screen === "playing") {
+      if (timeLeft > 0) {
+        const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+        return () => clearTimeout(timer);
+      } else {
+        // Автоматически завершаем игру когда время истекло
+        handleFinish();
+      }
     }
   }, [screen, timeLeft]);
 
@@ -75,10 +74,7 @@ const Index = () => {
     if (!draggedElement || !slideRef.current) return;
 
     const slideRect = slideRef.current.getBoundingClientRect();
-    const elementRect = document.getElementById(draggedElement)?.getBoundingClientRect();
     
-    if (!elementRect) return;
-
     const isInside =
       e.clientX >= slideRect.left &&
       e.clientX <= slideRect.right &&
@@ -86,20 +82,35 @@ const Index = () => {
       e.clientY <= slideRect.bottom;
 
     if (isInside) {
-      setElementsOnSlide((prev) => new Set([...prev, draggedElement]));
-      toast.success("Элемент добавлен на слайд!");
-    } else {
-      setElementsOnSlide((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(draggedElement);
-        return newSet;
-      });
+      // Проверяем, не добавлен ли уже этот элемент
+      const alreadyOnSlide = slideElements.some(el => el.id === draggedElement);
+      
+      if (!alreadyOnSlide) {
+        const element = elements.find(el => el.id === draggedElement);
+        if (element) {
+          const newSlideElement: SlideElement = {
+            ...element,
+            position: {
+              x: Math.random() * 30 + 10,
+              y: Math.random() * 30 + 10,
+            }
+          };
+          setSlideElements(prev => [...prev, newSlideElement]);
+          toast.success("Элемент добавлен на слайд!");
+        }
+      }
     }
+  };
+
+  const handleRemoveFromSlide = (id: string) => {
+    setSlideElements(prev => prev.filter(el => el.id !== id));
+    toast.info("Элемент удален со слайда");
   };
 
   const handleFinish = () => {
     const requiredElements = elements.filter((el) => el.isRequired);
-    const allRequired = requiredElements.every((el) => elementsOnSlide.has(el.id));
+    const slideElementIds = new Set(slideElements.map(el => el.id));
+    const allRequired = requiredElements.every((el) => slideElementIds.has(el.id));
     
     setIsSuccess(allRequired);
     setFinalTime(10 - timeLeft);
@@ -109,6 +120,58 @@ const Index = () => {
       toast.success("Отличная работа! Презентация готова!");
     } else {
       toast.error("Не все элементы на месте!");
+    }
+  };
+
+  const renderSlideContent = (element: SlideElement) => {
+    switch (element.type) {
+      case "header":
+        return <div className="text-lg font-bold text-foreground">{element.content as string}</div>;
+      
+      case "list":
+        return (
+          <div className="space-y-1 text-xs">
+            {(element.content as string[]).map((item, idx) => (
+              <div key={idx} className="flex items-start gap-1">
+                <span className="text-primary">•</span>
+                <span className="text-foreground line-clamp-1">{item}</span>
+              </div>
+            ))}
+          </div>
+        );
+      
+      case "image":
+        return (
+          <div className="bg-primary/10 rounded p-2 border border-primary/30">
+            <div className="text-primary text-[8px] font-semibold">ИНТЕРФЕЙС</div>
+            <div className="aspect-video bg-gradient-to-br from-primary/20 to-primary/5 rounded mt-1"></div>
+          </div>
+        );
+      
+      case "chart":
+        return (
+          <div className="space-y-1">
+            <div className="text-xs font-semibold text-foreground">Прогресс</div>
+            <div className="h-4 bg-secondary rounded-full overflow-hidden">
+              <div className="h-full bg-success w-[75%]"></div>
+            </div>
+          </div>
+        );
+      
+      case "plans":
+        return (
+          <div className="space-y-1">
+            <div className="text-xs font-semibold text-foreground">Планы</div>
+            <p className="text-[10px] text-muted-foreground line-clamp-2">{element.content as string}</p>
+          </div>
+        );
+      
+      case "useless":
+        return (
+          <div className="text-center opacity-60">
+            <span className="text-2xl">🤔</span>
+          </div>
+        );
     }
   };
 
@@ -159,41 +222,61 @@ const Index = () => {
                 ref={slideRef}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
-                className="bg-card rounded-2xl border-4 border-primary/30 aspect-[16/10] shadow-2xl p-8 relative overflow-hidden"
+                className="bg-card rounded-2xl border-4 border-primary/30 aspect-[16/10] shadow-2xl p-6 relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-                <div className="relative z-10 h-full flex items-center justify-center">
-                  {elementsOnSlide.size === 0 ? (
-                    <p className="text-muted-foreground text-xl">Перетащите элементы сюда</p>
+                <div className="relative z-10 h-full">
+                  {slideElements.length === 0 ? (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-muted-foreground text-xl">Перетащите элементы сюда</p>
+                    </div>
                   ) : (
-                    <div className="text-center">
-                      <p className="text-success font-semibold">Элементов на слайде: {elementsOnSlide.size}</p>
+                    <div className="grid grid-cols-2 gap-3 h-full">
+                      {slideElements.map((element) => (
+                        <div
+                          key={element.id}
+                          className="bg-background/50 rounded-lg p-3 shadow-md border border-primary/20 relative group animate-bounce-in hover:bg-background/70 transition-all"
+                          onClick={() => handleRemoveFromSlide(element.id)}
+                        >
+                          <button className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                            ✕
+                          </button>
+                          {renderSlideContent(element)}
+                        </div>
+                      ))}
                     </div>
                   )}
+                </div>
+                <div className="absolute bottom-4 right-4 text-sm text-muted-foreground">
+                  Элементов: {slideElements.length}
                 </div>
               </div>
             </div>
 
             <div className="col-span-5 space-y-4 max-h-[600px] overflow-y-auto pr-2">
-              {elements.map((element, idx) => (
-                <div
-                  key={element.id}
-                  className="animate-bounce-in"
-                  style={{
-                    animationDelay: `${idx * 0.1}s`,
-                    animationFillMode: "backwards",
-                  }}
-                >
-                  <GameElement
-                    id={element.id}
-                    type={element.type}
-                    content={element.content}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    className={elementsOnSlide.has(element.id) ? "ring-2 ring-success" : ""}
-                  />
-                </div>
-              ))}
+              <p className="text-sm text-muted-foreground">Перетащите элементы на слайд →</p>
+              {elements.map((element, idx) => {
+                const isOnSlide = slideElements.some(el => el.id === element.id);
+                return (
+                  <div
+                    key={element.id}
+                    className="animate-bounce-in"
+                    style={{
+                      animationDelay: `${idx * 0.1}s`,
+                      animationFillMode: "backwards",
+                    }}
+                  >
+                    <GameElement
+                      id={element.id}
+                      type={element.type}
+                      content={element.content}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      className={isOnSlide ? "ring-2 ring-success opacity-50" : ""}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -218,6 +301,9 @@ const Index = () => {
                 ? ["Стас гордится тобой!", "Команда впечатлена!", "Клиенты в восторге!"][Math.floor(Math.random() * 3)]
                 : ["Стас опозорился на ревью...", "Придется показывать доску Jira...", "Все ушли на кофе-брейк."][Math.floor(Math.random() * 3)]}
             </p>
+            <div className="text-lg text-foreground">
+              Добавлено элементов: {slideElements.length} / {elements.filter(el => el.isRequired).length} обязательных
+            </div>
             <Button 
               size="lg" 
               onClick={startGame}
