@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { GameElement } from "@/components/GameElement";
 import { toast } from "sonner";
 
@@ -253,30 +254,34 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="col-span-5 space-y-4 max-h-[600px] overflow-y-auto pr-2">
-              <p className="text-sm text-muted-foreground">Перетащите элементы на слайд →</p>
-              {elements.map((element, idx) => {
-                const isOnSlide = slideElements.some(el => el.id === element.id);
-                return (
-                  <div
-                    key={element.id}
-                    className="animate-bounce-in"
-                    style={{
-                      animationDelay: `${idx * 0.1}s`,
-                      animationFillMode: "backwards",
-                    }}
-                  >
-                    <GameElement
-                      id={element.id}
-                      type={element.type}
-                      content={element.content}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                      className={isOnSlide ? "ring-2 ring-success opacity-50" : ""}
-                    />
-                  </div>
-                );
-              })}
+            <div className="col-span-5">
+              <p className="text-sm text-muted-foreground mb-3">Перетащите элементы на слайд →</p>
+              <ScrollArea className="h-[600px] pr-4">
+                <div className="space-y-4">
+                  {elements.map((element, idx) => {
+                    const isOnSlide = slideElements.some(el => el.id === element.id);
+                    return (
+                      <div
+                        key={element.id}
+                        className="animate-bounce-in"
+                        style={{
+                          animationDelay: `${idx * 0.1}s`,
+                          animationFillMode: "backwards",
+                        }}
+                      >
+                        <GameElement
+                          id={element.id}
+                          type={element.type}
+                          content={element.content}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                          className={isOnSlide ? "ring-2 ring-success opacity-50" : ""}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             </div>
           </div>
         </div>
